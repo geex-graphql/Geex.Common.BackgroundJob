@@ -58,8 +58,7 @@ namespace Geex.Common.BackgroundJob
         {
             var app = context.GetApplicationBuilder();
             app.UseHangfireDashboard();
-            app.UseRouting()
-                .UseEndpoints(endpoints =>
+            app.UseEndpoints(endpoints =>
              {
                  endpoints.MapHangfireDashboard();
              });
