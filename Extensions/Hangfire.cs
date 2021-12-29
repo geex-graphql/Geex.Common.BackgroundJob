@@ -32,12 +32,12 @@ namespace Hangfire
 
         public static void Schedule<TJob>(this IRecurringJobManager client, string cronExpression) where TJob : Job
         {
-            client.AddOrUpdate(typeof(TJob).Name + cronExpression, Activator.CreateInstance<TJob>(), cronExpression, TimeZoneInfo.Local);
+            client.AddOrUpdate(typeof(TJob).Name, Activator.CreateInstance<TJob>(), cronExpression, TimeZoneInfo.Local);
         }
 
         public static void Schedule<TJob, TParam>(this IRecurringJobManager client, TParam param, string cronExpression) where TJob : NamedJob<TJob, TParam>, new()
         {
-            client.AddOrUpdate(typeof(TJob).Name + cronExpression, () => Activator.CreateInstance<TJob>().Run(param), cronExpression, TimeZoneInfo.Local);
+            client.AddOrUpdate(typeof(TJob).Name, () => Activator.CreateInstance<TJob>().Run(param), cronExpression, TimeZoneInfo.Local);
         }
     }
 }

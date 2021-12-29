@@ -50,6 +50,7 @@ namespace Geex.Common.BackgroundJob
             context.Services.AddHangfireServer(x =>
             {
                 x.WorkerCount = options.WorkerCount;
+                x.SchedulePollingInterval = TimeSpan.FromSeconds(3);
             });
             base.ConfigureServices(context);
         }
