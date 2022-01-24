@@ -23,6 +23,7 @@ using Volo.Abp.Modularity;
 
 namespace Geex.Common.BackgroundJob
 {
+    [DependsOn(typeof(GeexCoreModule))]
     public class BackgroundJobModule : GeexModule<BackgroundJobModule>
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
@@ -55,15 +56,15 @@ namespace Geex.Common.BackgroundJob
             base.ConfigureServices(context);
         }
 
-        public override void OnApplicationInitialization(ApplicationInitializationContext context)
+        /// <inheritdoc />
+        public override void OnPostApplicationInitialization(ApplicationInitializationContext context)
         {
             var app = context.GetApplicationBuilder();
-            app.UseHangfireDashboard();
             app.UseEndpoints(endpoints =>
              {
                  endpoints.MapHangfireDashboard();
              });
-            base.OnApplicationInitialization(context);
+            base.OnPostApplicationInitialization(context);
         }
     }
 }
