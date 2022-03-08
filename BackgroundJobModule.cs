@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Geex.Common.Abstractions;
+using Geex.Common.BackgroundJob.MessageQueue;
 
 using Hangfire;
 using Hangfire.AspNetCore;
@@ -16,6 +17,9 @@ using HotChocolate.Execution.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
@@ -28,7 +32,13 @@ namespace Geex.Common.BackgroundJob
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
-            var options = this.ModuleOptions as BackgroundJobModuleOptions;
+            var moduleOptions = this.ModuleOptions as BackgroundJobModuleOptions;
+
+            foreach (var mqOptions in moduleOptions.MqOptions)
+            {
+                context.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRabbitMqSubscriber, RabbitMqSubscriber>(x => new RabbitMqSubscriber(mqOptions, x.GetService<ILogger<RabbitMqSubscriber>>(), x.GetService<IServiceScopeFactory>())));
+            }
+
             context.Services.AddHangfire(configuration =>
             {
                 configuration
@@ -38,7 +48,7 @@ namespace Geex.Common.BackgroundJob
                     .UseSimpleAssemblyNameTypeSerializer()
                     .UseRecommendedSerializerSettings()
                     //.UseActivator(new AspNetCoreJobActivator(context.Services.GetSingletonInstance<IServiceScopeFactory>()))
-                    .UseMongoStorage(options.ConnectionString, new MongoStorageOptions()
+                    .UseMongoStorage(moduleOptions.ConnectionString, new MongoStorageOptions()
                     {
                         MigrationOptions = new MongoMigrationOptions()
                         {
@@ -50,10 +60,22 @@ namespace Geex.Common.BackgroundJob
             // Add the processing server as IHostedService
             context.Services.AddHangfireServer(x =>
             {
-                x.WorkerCount = options.WorkerCount;
+                x.WorkerCount = moduleOptions.WorkerCount;
                 x.SchedulePollingInterval = TimeSpan.FromSeconds(3);
             });
             base.ConfigureServices(context);
+        }
+
+
+        /// <inheritdoc />
+        public override void OnApplicationInitialization(ApplicationInitializationContext context)
+        {
+            var subscribers = context.ServiceProvider.GetServices<IRabbitMqSubscriber>();
+            foreach (var subscriber in subscribers)
+            {
+                subscriber.Start();
+            }
+            base.OnApplicationInitialization(context);
         }
 
         /// <inheritdoc />
