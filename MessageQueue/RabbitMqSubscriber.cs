@@ -79,8 +79,8 @@ namespace Geex.Common.BackgroundJob.MessageQueue
             if (_channel != null) return _channel;
             _channel = Connection.CreateModel();
             _channel.ConfirmSelect();
-            _channel.ExchangeDeclare(this.Options.ExchangeName, ExchangeType.Fanout);
-            _channel.QueueDeclare(this.Options.QueueName, false, false, false, null);
+            _channel.ExchangeDeclare(this.Options.ExchangeName, ExchangeType.Fanout, durable: true);
+            _channel.QueueDeclare(this.Options.QueueName, true, false, false, null);
             var consumer = new EventingBasicConsumer(_channel);
             consumer.Received += async (_, e) =>
             {
@@ -93,16 +93,18 @@ namespace Geex.Common.BackgroundJob.MessageQueue
         private async Task EventReceivedAsync(object sender, BasicDeliverEventArgs args)
         {
             var jsonString = Encoding.UTF8.GetString(args.Body.Span);
+            using var scope = _scopeFactory.CreateScope();
+            var sp = scope.ServiceProvider;
+            using var uow = sp.GetService<IUnitOfWork>();
+            object? eventObj = null;
             try
             {
-                using var scope = _scopeFactory.CreateScope();
-                var sp = scope.ServiceProvider;
-                using var uow = sp.GetService<IUnitOfWork>();
                 if (this.EventSubscribes.TryGetValue(args.RoutingKey, out var eventType))
                 {
                     var handlerType = typeof(IRabbitMqEventHandler<>).MakeGenericType(eventType);
                     var handler = sp.GetService(handlerType);
-                    await handler.Call(_handlerMethodInfo(handlerType), new[] { jsonString.ToObject(eventType) }).As<Task>();
+                    eventObj = jsonString.ToObject(eventType);
+                    await handler.Call(_handlerMethodInfo(handlerType), new[] { eventObj }).As<Task>();
                     //await handler.Handle(jsonString.ToObject(null));
                     await uow.CommitAsync();
                     _channel.BasicAck(args.DeliveryTag, false);
@@ -116,8 +118,7 @@ namespace Geex.Common.BackgroundJob.MessageQueue
             }
             catch (Exception e)
             {
-                _logger.LogError("mq订阅执行失败:" + Environment.NewLine + $"{args.Exchange}:{args.RoutingKey}:{jsonString}");
-                _logger.LogException(e);
+                _logger.LogError(e, "mq订阅执行失败:" + Environment.NewLine + $"{args.Exchange}:{args.RoutingKey}:{jsonString}");
                 _channel.BasicNack(args.DeliveryTag, false, false);
             }
         }
