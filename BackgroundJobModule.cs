@@ -4,17 +4,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Geex.Common.Abstraction;
 using Geex.Common.Abstractions;
 using Geex.Common.BackgroundJob.MessageQueue;
 
 using Hangfire;
 using Hangfire.AspNetCore;
+using Hangfire.Dashboard;
+using Hangfire.JobsLogger;
 using Hangfire.Mongo;
 using Hangfire.Mongo.Migration.Strategies;
 
 using HotChocolate.Execution.Configuration;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -32,7 +36,7 @@ namespace Geex.Common.BackgroundJob
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
-            var moduleOptions = this.ModuleOptions as BackgroundJobModuleOptions;
+            var moduleOptions = Configuration.GetModuleOptions<BackgroundJobModuleOptions>();
 
             foreach (var mqOptions in moduleOptions.MqOptions)
             {
@@ -43,6 +47,7 @@ namespace Geex.Common.BackgroundJob
             {
                 configuration
                     .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+                    .UseJobsLogger()
                     .UseFilter(new AutomaticRetryAttribute()
                     { Attempts = 3, DelaysInSeconds = new[] { 30, 3600, 3600 * 24 } })
                     .UseSimpleAssemblyNameTypeSerializer()
@@ -66,27 +71,24 @@ namespace Geex.Common.BackgroundJob
             base.ConfigureServices(context);
         }
 
+        /// <inheritdoc />
+        public override Task OnPreApplicationInitializationAsync(ApplicationInitializationContext context)
+        {
+            var app = context.GetApplicationBuilder();
+            app.UseEndpoints(endpoints => endpoints.MapHangfireDashboard());
+
+            return base.OnPreApplicationInitializationAsync(context);
+        }
 
         /// <inheritdoc />
-        public override void OnApplicationInitialization(ApplicationInitializationContext context)
+        public override Task OnPostApplicationInitializationAsync(ApplicationInitializationContext context)
         {
             var subscribers = context.ServiceProvider.GetServices<IRabbitMqSubscriber>();
             foreach (var subscriber in subscribers)
             {
                 subscriber.Start();
             }
-            base.OnApplicationInitialization(context);
-        }
-
-        /// <inheritdoc />
-        public override void OnPostApplicationInitialization(ApplicationInitializationContext context)
-        {
-            var app = context.GetApplicationBuilder();
-            app.UseEndpoints(endpoints =>
-             {
-                 endpoints.MapHangfireDashboard();
-             });
-            base.OnPostApplicationInitialization(context);
+            return base.OnPostApplicationInitializationAsync(context);
         }
     }
 }
