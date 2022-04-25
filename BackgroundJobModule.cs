@@ -62,13 +62,20 @@ namespace Geex.Common.BackgroundJob
                     });
             });
 
+            base.ConfigureServices(context);
+        }
+
+        /// <inheritdoc />
+        public override void PostConfigureServices(ServiceConfigurationContext context)
+        {
+            var moduleOptions = Configuration.GetModuleOptions<BackgroundJobModuleOptions>();
             // Add the processing server as IHostedService
             context.Services.AddHangfireServer(x =>
             {
                 x.WorkerCount = moduleOptions.WorkerCount;
                 x.SchedulePollingInterval = TimeSpan.FromSeconds(3);
             });
-            base.ConfigureServices(context);
+            base.PostConfigureServices(context);
         }
 
         /// <inheritdoc />
@@ -83,11 +90,17 @@ namespace Geex.Common.BackgroundJob
         /// <inheritdoc />
         public override Task OnPostApplicationInitializationAsync(ApplicationInitializationContext context)
         {
-            var subscribers = context.ServiceProvider.GetServices<IRabbitMqSubscriber>();
-            foreach (var subscriber in subscribers)
+            var moduleOptions = Configuration.GetModuleOptions<BackgroundJobModuleOptions>();
+
+            if (moduleOptions.MqOptions.Any())
             {
-                subscriber.Start();
+                var subscribers = context.ServiceProvider.GetServices<IRabbitMqSubscriber>();
+                foreach (var subscriber in subscribers)
+                {
+                    subscriber.Start();
+                }
             }
+
             return base.OnPostApplicationInitializationAsync(context);
         }
     }
