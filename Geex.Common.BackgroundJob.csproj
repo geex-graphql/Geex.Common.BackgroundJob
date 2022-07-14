@@ -11,10 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hangfire.AspNetCore" Version="1.7.27" />
-    <PackageReference Include="Hangfire.JobsLogger" Version="0.2.1" />
-    <PackageReference Include="Hangfire.Mongo" Version="0.7.27" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.2.4" />
+    <PackageReference Include="EasyCronJob.Core" Version="2.1.0" />
   </ItemGroup>
 
   <ItemGroup>
