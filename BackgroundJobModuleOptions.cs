@@ -13,5 +13,6 @@ namespace Geex.Common.BackgroundJob
     public class BackgroundJobModuleOptions : IGeexModuleOption<BackgroundJobModule>
     {
         public Dictionary<string, string> JobConfigs { get; set; } = new Dictionary<string, string>();
+        public bool Disabled { get; set; }
     }
 }

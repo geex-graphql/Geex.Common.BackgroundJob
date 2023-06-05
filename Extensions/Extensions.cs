@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,7 +12,10 @@ using EasyCronJob.Abstractions;
 using Geex.Common.Abstractions;
 using Geex.Common.BackgroundJob;
 
+using GreenDonut;
+
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 // ReSharper disable once CheckNamespace
@@ -28,12 +34,19 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             var jobType = typeof(T);
             var jobName = jobType.Name;
-            cronExp ??= services.GetRequiredService<BackgroundJobModuleOptions>().JobConfigs.GetValueOrDefault(jobName);
+            var backgroundJobModuleOptions = services.GetSingletonInstance<BackgroundJobModuleOptions>();
+            if (backgroundJobModuleOptions.Disabled)
+            {
+                return;
+            }
+            cronExp ??= backgroundJobModuleOptions.JobConfigs.GetValueOrDefault(jobName);
             if (cronExp.IsNullOrEmpty())
             {
                 throw new Exception($"[{jobName}]未配置, 查找配置结点: [{nameof(BackgroundJobModuleOptions)}:{nameof(BackgroundJobModuleOptions.JobConfigs)}:{jobName}]");
             }
-            services.AddHostedService(x => Activator.CreateInstance(jobType, x, cronExp).As<IHostedService>());
+
+            var register = typeof(CronJob<>).MakeGenericType(jobType).GetMethod(nameof(CronJob<CronJobService>.Register));
+            register.Invoke(null, new object[] { services, cronExp });
         }
     }
 }
